@@ -4,137 +4,120 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# 페이지 설정
-st.set_page_config(page_title="Stock Insight Lite", layout="wide", initial_sidebar_state="expanded")
+# 1. 페이지 설정
+st.set_page_config(page_title="Stock Insight Pro", layout="wide")
 
-# 라이트 모드 전용 CSS (깔끔한 카드 스타일 및 폰트 설정)
+# 2. 클린 라이트 테마 CSS
 st.markdown("""
     <style>
-    /* 전체 배경색 및 폰트 */
-    .main { background-color: #f8f9fa; color: #1e1e1e; }
-    
-    /* 메트릭 카드 스타일 */
-    [data-testid="stMetric"] {
+    .main { background-color: #f9fbfd; }
+    div[data-testid="stMetric"] {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        border: 1px solid #edf2f7;
+        border: 1px solid #e0e6ed;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
     }
-    
-    /* 사이드바 스타일 */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #edf2f7;
-    }
-    
-    /* 제목 스타일 */
-    h1 { color: #1a73e8; font-weight: 800; }
-    h3 { color: #444746; font-weight: 600; }
-    
-    /* 버튼 스타일 커스텀 */
-    .stButton>button {
-        width: 100%;
-        border-radius: 10px;
-        background-color: #1a73e8;
-        color: white;
-        border: none;
-    }
+    .stPlotlyChart { background-color: #ffffff; border-radius: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 메인 헤더
-st.title("📊 Global Stock Monitor")
-st.caption("한국 및 미국 주요 주식의 수익률을 실시간으로 비교합니다.")
-st.write("---")
+st.title("📈 Global Stock Comparison")
+st.caption("실시간 주가 데이터 기반 수익률 분석 대시보드")
 
-# 사이드바 설정
+# 3. 사이드바 구성
 with st.sidebar:
-    st.subheader("⚙️ 분석 설정")
-    ticker_input = st.text_input("종목 입력 (쉼표 구분)", "AAPL, NVDA, 005930.KS, 000660.KS")
-    tickers = [t.strip().upper() for t in ticker_input.split(",")]
+    st.header("🔍 분석 설정")
+    # 기본 종목 설정 (한국/미국 혼합)
+    default_tickers = "AAPL, NVDA, 005930.KS, 000660.KS"
+    input_tickers = st.text_input("종목 티커 (쉼표 구분)", default_tickers)
     
-    period = st.select_slider(
-        "분석 기간 선택",
-        options=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
-        value="1y"
-    )
+    # 공백 제거 및 리스트 변환
+    tickers = [t.strip().upper() for t in input_tickers.split(",") if t.strip()]
     
-    show_spy = st.toggle("S&P 500 지수와 비교", value=True)
+    period = st.selectbox("조회 기간", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
     st.divider()
-    st.info("💡 팁: 한국 주식은 종목코드 뒤에 .KS(코스피)나 .KQ(코스닥)를 붙여주세요.")
+    st.write("📌 **Tip**")
+    st.caption("KOSPI: .KS (예: 005930.KS)")
+    st.caption("KOSDAQ: .KQ (예: 247540.KQ)")
 
-# 데이터 로딩 함수 (캐싱)
-@st.cache_data
-def get_stock_data(ticker_list, period_str, add_spy):
-    target_list = ticker_list.copy()
-    if add_spy:
-        target_list.append("SPY")
+# 4. 데이터 로드 및 오류 방지 처리
+@st.cache_data(ttl=3600)
+def fetch_data(ticker_list, p):
+    # group_by='column'을 사용하여 멀티인덱스 구조를 안정화
+    df = yf.download(ticker_list, period=p, interval='1d')['Close']
     
-    df = yf.download(target_list, period=period_str)['Close']
+    # 종목이 1개일 경우 Series로 반환될 수 있어 DataFrame으로 변환
+    if isinstance(df, pd.Series):
+        df = df.to_frame()
+        df.columns = ticker_list
+        
+    # 데이터가 비어있는 컬럼 제거
+    df = df.dropna(how='all', axis=1)
     return df
 
-try:
-    with st.spinner('데이터를 불러오는 중입니다...'):
-        raw_data = get_stock_data(tickers, period, show_spy)
+if tickers:
+    try:
+        data = fetch_data(tickers, period)
         
-    # 누적 수익률 계산
-    returns_df = (raw_data / raw_data.iloc[0] - 1) * 100
+        if data.empty:
+            st.warning("데이터를 가져오지 못했습니다. 티커명을 확인해주세요.")
+        else:
+            # 수익률 계산 (NaN 제거 후 첫 번째 유효값 기준)
+            returns = (data / data.iloc[0] - 1) * 100
 
-    # 1. 상단 요약 정보 (Metrics)
-    st.subheader("✨ Today's Market")
-    cols = st.columns(len(tickers))
-    
-    for i, ticker in enumerate(tickers):
-        with cols[i]:
-            current_val = raw_data[ticker].iloc[-1]
-            prev_val = raw_data[ticker].iloc[-2]
-            change_pct = ((current_val - prev_val) / prev_val) * 100
+            # --- 레이아웃 배치 ---
             
-            unit = "₩" if ".KS" in ticker or ".KQ" in ticker else "$"
-            st.metric(
-                label=ticker, 
-                value=f"{unit}{current_val:,.0f}" if unit == "₩" else f"{unit}{current_val:,.2f}", 
-                delta=f"{change_pct:.2f}%"
-            )
+            # 상단 메트릭
+            st.subheader("📍 현재가 요약")
+            m_cols = st.columns(len(data.columns))
+            for i, col in enumerate(data.columns):
+                current_price = data[col].iloc[-1]
+                prev_price = data[col].iloc[-2]
+                change = ((current_price - prev_price) / prev_price) * 100
+                
+                # 한국 주식은 ₩, 미국 주식은 $ 표시
+                symbol = "₩" if ".K" in col else "$"
+                m_cols[i].metric(label=col, value=f"{symbol}{current_price:,.2f}", delta=f"{change:.2f}%")
 
-    st.markdown("###")
+            st.write("---")
 
-    # 2. 메인 수익률 차트
-    c1, c2 = st.columns([4, 1])
-    
-    with c1:
-        st.subheader("📈 수익률 추이")
-        fig = go.Figure()
-        
-        for col in returns_df.columns:
-            # S&P 500은 강조되지 않게 회색 점선으로 처리
-            if col == "SPY":
-                fig.add_trace(go.Scatter(x=returns_df.index, y=returns_df[col], name="S&P 500", 
-                                         line=dict(color='#bdc3c7', width=2, dash='dot')))
-            else:
-                fig.add_trace(go.Scatter(x=returns_df.index, y=returns_df[col], name=col, 
-                                         line=dict(width=3), hovertemplate='%{y:.2f}%'))
+            # 하단 차트 및 순위
+            col_left, col_right = st.columns([3, 1])
 
-        fig.update_layout(
-            hovermode="x unified",
-            plot_bgcolor='white',
-            paper_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
-            yaxis=dict(showgrid=True, gridcolor='#f0f2f6', ticksuffix="%")
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            with col_left:
+                st.subheader("📊 누적 수익률 비교")
+                fig = go.Figure()
+                for col in returns.columns:
+                    fig.add_trace(go.Scatter(
+                        x=returns.index, 
+                        y=returns[col], 
+                        name=col,
+                        line=dict(width=2.5),
+                        hovertemplate=f'<b>{col}</b><br>수익률: %{{y:.2f}}%<extra></extra>'
+                    ))
+                
+                fig.update_layout(
+                    hovermode="x unified",
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
+                    yaxis=dict(showgrid=True, gridcolor='#f0f2f6', ticksuffix="%"),
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
-    with c2:
-        st.subheader("🏆 순위")
-        # 마지막 수익률 기준 내림차순 정렬
-        final_rets = returns_df.iloc[-1].sort_values(ascending=False)
-        for rank, (name, val) in enumerate(final_rets.items(), 1):
-            color = "#e74c3c" if val < 0 else "#2ecc71"
-            st.markdown(f"**{rank}. {name}**")
-            st.markdown(f"<h4 style='color:{color}; margin-top:-10px;'>{val:.1f}%</h4>", unsafe_allow_html=True)
+            with col_right:
+                st.subheader("🏆 Performance Rank")
+                latest_ret = returns.iloc[-1].sort_values(ascending=False)
+                for rank, (name, val) in enumerate(latest_ret.items(), 1):
+                    color = "#d63031" if val < 0 else "#00b894"
+                    st.markdown(f"**{rank}. {name}**")
+                    st.markdown(f"<span style='color:{color}; font-size: 20px; font-weight: bold;'>{val:.2f}%</span>", unsafe_allow_html=True)
+                    st.write("")
 
-except Exception as e:
-    st.error(f"데이터를 불러올 수 없습니다. 티커 명칭을 확인해 주세요! (오류: {e})")
+    except Exception as e:
+        st.error(f"데이터 처리 중 오류가 발생했습니다: {e}")
+else:
+    st.info("비교할 주식 티커를 입력해주세요.")
