@@ -2,404 +2,476 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
 import numpy as np
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="글로벌 주식 비교 대시보드",
-    page_icon="📈",
+    page_icon="☀️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─── Custom CSS ───────────────────────────────────────────────────────────────
+# ─── Sky Blue Theme CSS ────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700&family=DM+Mono:wght@400;500&display=swap');
 
-/* Root theme */
+/* ── Palette ────────────────────────────────────────────── */
 :root {
-    --bg-primary: #0a0e1a;
-    --bg-card: #111827;
-    --bg-card2: #1a2235;
-    --accent-green: #00e676;
-    --accent-red: #ff4d6d;
-    --accent-blue: #4facfe;
-    --accent-gold: #ffd166;
-    --text-primary: #f0f4ff;
-    --text-muted: #7a8ab0;
-    --border: rgba(255,255,255,0.07);
+    --sky-50:  #f0f9ff;
+    --sky-100: #e0f2fe;
+    --sky-200: #bae6fd;
+    --sky-300: #7dd3fc;
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+    --sky-600: #0284c7;
+    --sky-700: #0369a1;
+    --sky-900: #0c4a6e;
+
+    --bg:        #f0f9ff;
+    --bg-card:   #ffffff;
+    --bg-card2:  #e8f5fd;
+
+    --green:  #10b981;
+    --red:    #ef4444;
+    --gold:   #f59e0b;
+    --violet: #8b5cf6;
+
+    --text:       #0c2340;
+    --text-mid:   #334e68;
+    --text-muted: #6b90b0;
+    --border:     #bae6fd;
+    --shadow:     0 2px 16px rgba(14,165,233,0.10);
+    --shadow-lg:  0 8px 32px rgba(14,165,233,0.18);
 }
 
+/* ── Global ─────────────────────────────────────────────── */
 html, body, [class*="css"] {
-    font-family: 'Noto Sans KR', sans-serif;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
+    font-family: 'DM Sans', 'Noto Sans KR', sans-serif !important;
+    background-color: var(--bg) !important;
+    color: var(--text) !important;
 }
 
-/* Main container */
+/* ── Main block ─────────────────────────────────────────── */
 .main .block-container {
-    padding: 1.5rem 2rem 3rem 2rem;
-    max-width: 1400px;
+    padding: 1.8rem 2.2rem 4rem 2.2rem !important;
+    max-width: 1440px;
+}
+.main {
+    background: linear-gradient(155deg, #e0f2fe 0%, #f0f9ff 55%, #e8f5fd 100%) !important;
+    min-height: 100vh;
 }
 
-/* Header */
-.dashboard-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 1.5rem 0 0.5rem 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 1.5rem;
+/* ── Animated header ────────────────────────────────────── */
+.dash-header {
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 55%, #38bdf8 100%);
+    border-radius: 22px;
+    padding: 2.2rem 2.6rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 40px rgba(2,132,199,0.28);
+    position: relative;
+    overflow: hidden;
 }
-.header-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 1.6rem;
+.dash-header::before {
+    content: "";
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.10);
+    pointer-events: none;
+}
+.dash-header::after {
+    content: "";
+    position: absolute;
+    bottom: -50px; left: 28%;
+    width: 190px; height: 190px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.07);
+    pointer-events: none;
+}
+.dash-header-inner { position: relative; z-index: 1; }
+.dash-header-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.9rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #ffffff;
     letter-spacing: -0.5px;
+    line-height: 1.2;
 }
-.header-subtitle {
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    margin-top: 2px;
+.dash-header-sub {
+    font-size: 0.92rem;
+    color: rgba(255,255,255,0.80);
+    margin-top: 8px;
+    font-weight: 400;
 }
 .live-badge {
-    background: rgba(0,230,118,0.12);
-    color: var(--accent-green);
-    border: 1px solid rgba(0,230,118,0.3);
-    padding: 3px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(255,255,255,0.18);
+    color: #ffffff;
+    border: 1px solid rgba(255,255,255,0.38);
+    padding: 5px 14px;
     border-radius: 20px;
     font-size: 0.72rem;
-    font-family: 'Space Mono', monospace;
-    letter-spacing: 1px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1.2px;
+    margin-top: 14px;
+    width: fit-content;
+    backdrop-filter: blur(6px);
+}
+.live-dot-circle {
+    width: 7px; height: 7px;
+    background: #a7f3d0;
+    border-radius: 50%;
+    box-shadow: 0 0 7px #6ee7b7;
+    animation: blink 1.8s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Section label ──────────────────────────────────────── */
+.sec-hd {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--sky-600);
+    margin: 1.9rem 0 0.9rem 0;
+    padding-bottom: 9px;
+    border-bottom: 2px solid var(--sky-200);
+}
+.sec-hd-bar {
+    width: 4px; height: 15px;
+    background: linear-gradient(180deg, var(--sky-500), var(--sky-300));
+    border-radius: 2px;
+    flex-shrink: 0;
 }
 
-/* Metric cards */
-.metric-card {
+/* ── Price cards ─────────────────────────────────────────── */
+.pcard {
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.1rem 1.3rem;
-    transition: border-color 0.2s;
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    padding: 1.25rem 1.4rem;
+    box-shadow: var(--shadow);
+    transition: box-shadow .22s, transform .22s, border-color .22s;
+    position: relative;
+    overflow: hidden;
 }
-.metric-card:hover { border-color: rgba(79,172,254,0.3); }
-.metric-ticker {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    letter-spacing: 1px;
-    margin-bottom: 4px;
+.pcard::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--sky-400), var(--sky-300));
+    border-radius: 18px 18px 0 0;
 }
-.metric-name {
-    font-size: 0.85rem;
-    color: var(--text-primary);
+.pcard:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-3px);
+    border-color: var(--sky-400);
+}
+.pcard-ticker {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
     font-weight: 500;
-    margin-bottom: 6px;
+    color: var(--sky-500);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+.pcard-name {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 9px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.metric-price {
-    font-family: 'Space Mono', monospace;
-    font-size: 1.25rem;
+.pcard-price {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.3rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--text);
+    letter-spacing: -0.5px;
 }
-.metric-change-pos {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.82rem;
-    color: var(--accent-green);
-    font-weight: 700;
-}
-.metric-change-neg {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.82rem;
-    color: var(--accent-red);
-    font-weight: 700;
-}
+.pcard-up   { font-family:'DM Mono',monospace; font-size:.82rem; color:var(--green); font-weight:700; margin-top:5px; }
+.pcard-down { font-family:'DM Mono',monospace; font-size:.82rem; color:var(--red);   font-weight:700; margin-top:5px; }
 
-/* Section headers */
-.section-header {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 2px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    margin: 1.6rem 0 0.8rem 0;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-}
-
-/* Country flags */
-.flag-tag {
+/* ── Badges ──────────────────────────────────────────────── */
+.badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
+    border-radius: 6px;
+    font-size: 0.62rem;
+    font-weight: 700;
     letter-spacing: 0.5px;
     margin-left: 6px;
+    vertical-align: middle;
 }
-.flag-kr { background: rgba(0,114,255,0.15); color: #4facfe; border: 1px solid rgba(79,172,254,0.3); }
-.flag-us { background: rgba(255,65,54,0.12); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.3); }
+.badge-kr { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
+.badge-us { background:#fce7f3; color:#be185d; border:1px solid #f9a8d4; }
 
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background-color: #0d1322 !important;
-    border-right: 1px solid var(--border);
-}
-section[data-testid="stSidebar"] .block-container {
-    padding: 1.5rem 1rem;
-}
-
-/* Plotly chart background */
-.js-plotly-plot .plotly .bg { fill: transparent !important; }
-
-/* Streamlit overrides */
-div[data-testid="stMetric"] {
+/* ── Info card ───────────────────────────────────────────── */
+.icard {
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    padding: 1.3rem 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 0.85rem;
 }
-label[data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-size: 0.78rem; }
-div[data-testid="stMetricValue"] { color: var(--text-primary) !important; font-family: 'Space Mono', monospace; }
-
-.stSelectbox > div > div { background-color: var(--bg-card2) !important; }
-.stMultiSelect > div > div { background-color: var(--bg-card2) !important; }
-
-/* Tabs */
-div[data-testid="stTabs"] button {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.78rem;
-    letter-spacing: 0.5px;
-}
-
-/* Info box */
-.info-box {
-    background: rgba(79,172,254,0.07);
-    border: 1px solid rgba(79,172,254,0.2);
-    border-radius: 8px;
-    padding: 0.8rem 1rem;
-    font-size: 0.82rem;
-    color: #8ab4f8;
-    margin-bottom: 1rem;
+.icard-lbl {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.66rem;
+    color: var(--sky-500);
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 500;
 }
 
-/* Performance bar */
-.perf-bar-container { margin-bottom: 10px; }
-.perf-bar-label {
+/* ── Ranking rows ────────────────────────────────────────── */
+.rank-row {
     display: flex;
     justify-content: space-between;
-    font-size: 0.78rem;
-    margin-bottom: 4px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--sky-100);
+    font-size: 0.86rem;
+    color: var(--text-mid);
 }
-.perf-bar-bg {
-    background: rgba(255,255,255,0.07);
-    border-radius: 4px;
-    height: 6px;
-    overflow: hidden;
+.rank-row:last-child { border-bottom: none; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #dbeafe 0%, #e0f2fe 40%, #f0f9ff 100%) !important;
+    border-right: 1.5px solid var(--border) !important;
 }
-.perf-bar-fill-pos {
-    height: 100%;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #00e676, #69f0ae);
+section[data-testid="stSidebar"] .block-container {
+    padding: 1.6rem 1.2rem !important;
 }
-.perf-bar-fill-neg {
-    height: 100%;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #ff4d6d, #ff8a9a);
+
+/* ── Streamlit metric ────────────────────────────────────── */
+div[data-testid="stMetric"] {
+    background: var(--bg-card) !important;
+    border: 1.5px solid var(--border) !important;
+    border-radius: 14px !important;
+    padding: 1rem 1.2rem !important;
+    box-shadow: var(--shadow) !important;
 }
+label[data-testid="stMetricLabel"] { color:var(--text-muted)!important; font-size:.76rem!important; }
+div[data-testid="stMetricValue"]   { color:var(--text)!important; font-family:'DM Mono',monospace!important; font-weight:700!important; }
+
+/* ── Form elements ───────────────────────────────────────── */
+.stSelectbox label, .stMultiSelect label {
+    color: var(--text-mid) !important;
+    font-weight: 600 !important;
+    font-size: 0.82rem !important;
+}
+.stSelectbox > div > div, .stMultiSelect > div > div {
+    background:#ffffff!important;
+    border: 1.5px solid var(--border)!important;
+    border-radius: 10px!important;
+    color: var(--text)!important;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+div[data-testid="stTabs"] button {
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    color: var(--text-muted) !important;
+}
+div[data-testid="stTabs"] button[aria-selected="true"] {
+    color: var(--sky-600) !important;
+    border-bottom: 2.5px solid var(--sky-500) !important;
+}
+
+/* ── Checkbox ────────────────────────────────────────────── */
+.stCheckbox label { color:var(--text-mid)!important; font-weight:500!important; font-size:.84rem!important; }
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:var(--sky-50); }
+::-webkit-scrollbar-thumb { background:var(--sky-300); border-radius:3px; }
+
+/* ── Plotly transparent bg ───────────────────────────────── */
+.js-plotly-plot .plotly .bg { fill:transparent!important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 KR_STOCKS = {
-    "삼성전자": "005930.KS",
-    "SK하이닉스": "000660.KS",
-    "LG에너지솔루션": "373220.KS",
-    "현대차": "005380.KS",
-    "기아": "000270.KS",
-    "NAVER": "035420.KS",
-    "카카오": "035720.KS",
-    "셀트리온": "068270.KS",
-    "포스코홀딩스": "005490.KS",
-    "KB금융": "105560.KS",
-    "신한지주": "055550.KS",
-    "LG화학": "051910.KS",
-    "삼성SDI": "006400.KS",
-    "SK이노베이션": "096770.KS",
-    "하이브": "352820.KS",
+    "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "LG에너지솔루션": "373220.KS",
+    "현대차": "005380.KS", "기아": "000270.KS", "NAVER": "035420.KS",
+    "카카오": "035720.KS", "셀트리온": "068270.KS", "포스코홀딩스": "005490.KS",
+    "KB금융": "105560.KS", "신한지주": "055550.KS", "LG화학": "051910.KS",
+    "삼성SDI": "006400.KS", "SK이노베이션": "096770.KS", "하이브": "352820.KS",
 }
-
 US_STOCKS = {
-    "Apple": "AAPL",
-    "Microsoft": "MSFT",
-    "NVIDIA": "NVDA",
-    "Amazon": "AMZN",
-    "Alphabet": "GOOGL",
-    "Meta": "META",
-    "Tesla": "TSLA",
-    "Berkshire Hathaway": "BRK-B",
-    "JPMorgan Chase": "JPM",
-    "Visa": "V",
-    "Johnson & Johnson": "JNJ",
-    "ExxonMobil": "XOM",
-    "UnitedHealth": "UNH",
-    "Walmart": "WMT",
-    "Netflix": "NFLX",
+    "Apple": "AAPL", "Microsoft": "MSFT", "NVIDIA": "NVDA", "Amazon": "AMZN",
+    "Alphabet": "GOOGL", "Meta": "META", "Tesla": "TSLA", "Berkshire Hathaway": "BRK-B",
+    "JPMorgan Chase": "JPM", "Visa": "V", "Johnson & Johnson": "JNJ",
+    "ExxonMobil": "XOM", "UnitedHealth": "UNH", "Walmart": "WMT", "Netflix": "NFLX",
 }
-
 INDICES = {
-    "KOSPI": "^KS11",
-    "KOSDAQ": "^KQ11",
-    "S&P 500": "^GSPC",
-    "NASDAQ": "^IXIC",
-    "Dow Jones": "^DJI",
+    "KOSPI": "^KS11", "KOSDAQ": "^KQ11",
+    "S&P 500": "^GSPC", "NASDAQ": "^IXIC", "Dow Jones": "^DJI",
 }
-
 PERIOD_OPTIONS = {
-    "1개월": "1mo",
-    "3개월": "3mo",
-    "6개월": "6mo",
-    "1년": "1y",
-    "2년": "2y",
-    "5년": "5y",
+    "1개월": "1mo", "3개월": "3mo", "6개월": "6mo",
+    "1년": "1y", "2년": "2y", "5년": "5y",
 }
+KR_COLORS  = ["#0284c7","#0ea5e9","#38bdf8","#7dd3fc","#0369a1","#075985","#bae6fd","#0c4a6e"]
+US_COLORS  = ["#f59e0b","#d97706","#fbbf24","#b45309","#fcd34d","#92400e","#fde68a","#78350f"]
+IDX_COLORS = ["#8b5cf6","#6d28d9"]
 
-# ─── Data Helpers ─────────────────────────────────────────────────────────────
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=300)
 def fetch_price_data(tickers: list, period: str) -> dict:
-    result = {}
-    for ticker in tickers:
+    out = {}
+    for t in tickers:
         try:
-            t = yf.Ticker(ticker)
-            hist = t.history(period=period)
-            if not hist.empty:
-                result[ticker] = hist["Close"]
+            h = yf.Ticker(t).history(period=period)
+            if not h.empty:
+                out[t] = h["Close"]
         except Exception:
             pass
-    return result
+    return out
 
 @st.cache_data(ttl=300)
 def fetch_current_info(ticker: str) -> dict:
     try:
-        t = yf.Ticker(ticker)
-        info = t.info
-        hist = t.history(period="2d")
+        obj  = yf.Ticker(ticker)
+        info = obj.info
+        hist = obj.history(period="2d")
         if len(hist) >= 2:
-            prev_close = hist["Close"].iloc[-2]
-            curr_price = hist["Close"].iloc[-1]
-            chg = curr_price - prev_close
-            chg_pct = (chg / prev_close) * 100
+            prev, curr = hist["Close"].iloc[-2], hist["Close"].iloc[-1]
+            chg = curr - prev; pct = chg / prev * 100
         elif len(hist) == 1:
-            curr_price = hist["Close"].iloc[-1]
-            chg, chg_pct = 0, 0
+            curr = hist["Close"].iloc[-1]; chg = pct = 0
         else:
-            curr_price, chg, chg_pct = None, 0, 0
-        return {
-            "price": curr_price,
-            "change": chg,
-            "change_pct": chg_pct,
-            "name": info.get("shortName", ticker),
-            "currency": info.get("currency", ""),
-            "market_cap": info.get("marketCap"),
-            "pe": info.get("trailingPE"),
-            "volume": info.get("volume"),
-        }
+            curr = chg = pct = None
+        return {"price": curr, "change": chg or 0, "change_pct": pct or 0,
+                "name": info.get("shortName", ticker), "currency": info.get("currency", "")}
     except Exception:
         return {"price": None, "change": 0, "change_pct": 0, "name": ticker, "currency": ""}
 
-def compute_returns(price_series: pd.Series) -> dict:
-    if price_series.empty or len(price_series) < 2:
-        return {}
-    first = price_series.iloc[0]
-    last = price_series.iloc[-1]
-    total_ret = ((last - first) / first) * 100
-    normalized = (price_series / first) * 100
-    return {"total_return": total_ret, "normalized": normalized, "first": first, "last": last}
+def compute_returns(s):
+    if s is None or len(s) < 2: return {}
+    f, l = s.iloc[0], s.iloc[-1]
+    return {"total_return": (l-f)/f*100, "normalized": s/f*100, "first": f, "last": l}
 
-def format_price(price, currency):
-    if price is None:
-        return "N/A"
-    if currency == "KRW":
-        return f"₩{price:,.0f}"
-    return f"${price:,.2f}"
+def fmt_price(p, cur):
+    if p is None: return "N/A"
+    return f"₩{p:,.0f}" if cur == "KRW" else f"${p:,.2f}"
 
-def format_change(chg, chg_pct):
-    sign = "+" if chg >= 0 else ""
-    return f"{sign}{chg_pct:.2f}%"
+def fmt_chg(pct):
+    return ("▲", f"{abs(pct):.2f}%") if pct >= 0 else ("▼", f"{abs(pct):.2f}%")
 
-# ─── Sidebar ──────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### ⚙️ 설정")
-    st.markdown("---")
+def fmt_num(v, dec=1):
+    if v is None: return "N/A"
+    if v >= 1e12: return f"{v/1e12:.{dec}f}T"
+    if v >= 1e9:  return f"{v/1e9:.{dec}f}B"
+    if v >= 1e6:  return f"{v/1e6:.{dec}f}M"
+    return f"{v:,.0f}"
 
-    period_label = st.selectbox("📅 기간", list(PERIOD_OPTIONS.keys()), index=3)
-    period = PERIOD_OPTIONS[period_label]
-
-    st.markdown("#### 🇰🇷 한국 주식")
-    kr_selected_names = st.multiselect(
-        "종목 선택",
-        list(KR_STOCKS.keys()),
-        default=["삼성전자", "SK하이닉스", "현대차", "NAVER"],
-        key="kr_select"
+def base_layout(h=430, title=""):
+    return dict(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(240,249,255,0.55)",
+        font=dict(family="DM Sans, Noto Sans KR, sans-serif", color="#334e68", size=12),
+        height=h,
+        margin=dict(l=8, r=8, t=40 if title else 18, b=8),
+        hovermode="x unified",
+        legend=dict(bgcolor="rgba(255,255,255,0.88)", bordercolor="#bae6fd",
+                    borderwidth=1, font=dict(size=11)),
+        xaxis=dict(gridcolor="rgba(186,230,253,0.55)", linecolor="#bae6fd"),
+        yaxis=dict(gridcolor="rgba(186,230,253,0.55)", linecolor="#bae6fd"),
+        title=dict(text=title, font=dict(size=13, color="#0c4a6e"), x=0.01) if title else {},
     )
-    kr_selected = {n: KR_STOCKS[n] for n in kr_selected_names}
 
-    st.markdown("#### 🇺🇸 미국 주식")
-    us_selected_names = st.multiselect(
-        "종목 선택",
-        list(US_STOCKS.keys()),
-        default=["Apple", "NVIDIA", "Tesla", "Microsoft"],
-        key="us_select"
-    )
-    us_selected = {n: US_STOCKS[n] for n in us_selected_names}
-
-    st.markdown("#### 📊 지수")
-    idx_selected_names = st.multiselect(
-        "지수 선택",
-        list(INDICES.keys()),
-        default=["KOSPI", "S&P 500"],
-        key="idx_select"
-    )
-    idx_selected = {n: INDICES[n] for n in idx_selected_names}
-
-    st.markdown("---")
-    show_volume = st.checkbox("거래량 표시", value=True)
-    show_ma = st.checkbox("이동평균선 (20/60일)", value=False)
-
-    st.markdown("---")
+def sec(label):
     st.markdown(
-        "<div style='font-size:0.72rem;color:#4a5a80;'>데이터: Yahoo Finance<br>5분마다 자동 갱신</div>",
+        f'<div class="sec-hd"><span class="sec-hd-bar"></span>{label}</div>',
         unsafe_allow_html=True
     )
 
+# ─── Sidebar ──────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div style="text-align:center;padding:.5rem 0 1.4rem;">
+      <div style="font-size:2.2rem;line-height:1.1;">☀️</div>
+      <div style="font-size:1.05rem;font-weight:700;color:#0369a1;letter-spacing:-.3px;margin-top:4px;">
+        주식 대시보드
+      </div>
+      <div style="font-size:.74rem;color:#6b90b0;margin-top:3px;">글로벌 마켓 한눈에</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    period_label = st.selectbox("📅 조회 기간", list(PERIOD_OPTIONS.keys()), index=3)
+    period = PERIOD_OPTIONS[period_label]
+
+    st.markdown("---")
+    st.markdown("**🇰🇷 한국 주식**")
+    kr_names = st.multiselect("종목 선택", list(KR_STOCKS.keys()),
+                               default=["삼성전자","SK하이닉스","현대차","NAVER"])
+    kr_selected = {n: KR_STOCKS[n] for n in kr_names}
+
+    st.markdown("**🇺🇸 미국 주식**")
+    us_names = st.multiselect("종목 선택", list(US_STOCKS.keys()),
+                               default=["Apple","NVIDIA","Tesla","Microsoft"], key="us_s")
+    us_selected = {n: US_STOCKS[n] for n in us_names}
+
+    st.markdown("**📊 시장 지수**")
+    idx_names = st.multiselect("지수 선택", list(INDICES.keys()),
+                                default=["KOSPI","S&P 500"], key="idx_s")
+    idx_selected = {n: INDICES[n] for n in idx_names}
+
+    st.markdown("---")
+    show_volume = st.checkbox("거래량 표시", value=True)
+    show_ma     = st.checkbox("이동평균선 (20/60일)", value=False)
+
+    st.markdown("""
+    <div style="margin-top:1.4rem;font-size:.73rem;color:#7ab3cc;line-height:1.9;
+                background:rgba(14,165,233,.07);border-radius:12px;padding:11px 14px;
+                border:1px solid rgba(186,230,253,.6);">
+      📡 데이터: Yahoo Finance<br>
+      🔄 5분 간격 자동 갱신<br>
+      ⚠️ 투자 참고용 / 권유 아님
+    </div>
+    """, unsafe_allow_html=True)
+
 # ─── Header ───────────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="dashboard-header">
-  <div>
-    <div class="header-title">📈 글로벌 주식 비교 대시보드</div>
-    <div class="header-subtitle">한국 · 미국 주요 종목 수익률 & 차트 비교 분석</div>
+<div class="dash-header">
+  <div class="dash-header-inner">
+    <div class="dash-header-title">📈 글로벌 주식 비교 대시보드</div>
+    <div class="dash-header-sub">한국 · 미국 주요 종목의 수익률과 차트를 실시간으로 비교합니다</div>
+    <div class="live-badge">
+      <span class="live-dot-circle"></span>LIVE DATA
+    </div>
   </div>
-  <div class="live-badge">● LIVE</div>
 </div>
 """, unsafe_allow_html=True)
 
-# ─── All tickers ──────────────────────────────────────────────────────────────
+# ─── Guard ────────────────────────────────────────────────────────────────────
 all_selected = {**kr_selected, **us_selected}
-all_tickers = list(all_selected.values()) + list(idx_selected.values())
-
-if not all_selected and not idx_selected:
-    st.info("사이드바에서 종목을 선택해 주세요.")
+all_tickers  = list(all_selected.values()) + list(idx_selected.values())
+if not all_tickers:
+    st.info("👈 사이드바에서 종목을 선택해 주세요.")
     st.stop()
 
-# ─── Fetch Data ───────────────────────────────────────────────────────────────
-with st.spinner("데이터 불러오는 중..."):
+with st.spinner("📡 시세 데이터 불러오는 중..."):
     price_data = fetch_price_data(all_tickers, period)
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -409,534 +481,375 @@ tab1, tab2, tab3, tab4 = st.tabs(["📊 수익률 비교", "📈 차트 분석",
 # TAB 1 – 수익률 비교
 # ══════════════════════════════════════════════════════════════════════════════
 with tab1:
-    # ── Current Price Cards ──
-    st.markdown('<div class="section-header">실시간 시세</div>', unsafe_allow_html=True)
-
-    all_card_items = [(n, t, "KR") for n, t in kr_selected.items()] + \
-                     [(n, t, "US") for n, t in us_selected.items()]
-
-    if all_card_items:
-        cols = st.columns(min(len(all_card_items), 4))
-        for i, (name, ticker, region) in enumerate(all_card_items):
+    sec("실시간 시세")
+    cards = [(n,t,"KR") for n,t in kr_selected.items()] + \
+            [(n,t,"US") for n,t in us_selected.items()]
+    COLS = 4
+    for row_s in range(0, len(cards), COLS):
+        chunk = cards[row_s:row_s+COLS]
+        cols  = st.columns(len(chunk))
+        for col, (name, ticker, region) in zip(cols, chunk):
             info = fetch_current_info(ticker)
-            col_idx = i % 4
-            with cols[col_idx]:
-                chg_class = "metric-change-pos" if info["change_pct"] >= 0 else "metric-change-neg"
-                arrow = "▲" if info["change_pct"] >= 0 else "▼"
-                flag = '<span class="flag-tag flag-kr">KR</span>' if region == "KR" else '<span class="flag-tag flag-us">US</span>'
-                price_str = format_price(info["price"], info["currency"]) if info["price"] else "N/A"
-                chg_str = f"{arrow} {abs(info['change_pct']):.2f}%"
+            arrow, pct_s = fmt_chg(info["change_pct"])
+            cls   = "pcard-up" if info["change_pct"] >= 0 else "pcard-down"
+            badge = f'<span class="badge badge-kr">KR</span>' if region=="KR" \
+                    else f'<span class="badge badge-us">US</span>'
+            with col:
                 st.markdown(f"""
-                <div class="metric-card">
-                  <div class="metric-ticker">{ticker} {flag}</div>
-                  <div class="metric-name">{name}</div>
-                  <div class="metric-price">{price_str}</div>
-                  <div class="{chg_class}">{chg_str}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            if col_idx == 3 and i < len(all_card_items) - 1:
-                cols = st.columns(min(len(all_card_items) - i - 1, 4))
+                <div class="pcard">
+                  <div class="pcard-ticker">{ticker}{badge}</div>
+                  <div class="pcard-name">{name}</div>
+                  <div class="pcard-price">{fmt_price(info['price'],info['currency'])}</div>
+                  <div class="{cls}">{arrow} {pct_s}</div>
+                </div>""", unsafe_allow_html=True)
 
-    # ── Normalized Return Chart ──
-    st.markdown('<div class="section-header">정규화 수익률 비교 (시작일 = 100)</div>', unsafe_allow_html=True)
-
-    fig_norm = go.Figure()
-    color_palette_kr = ["#4facfe", "#00f2fe", "#a8edea", "#81ecec", "#74b9ff", "#0984e3", "#6c5ce7", "#00cec9"]
-    color_palette_us = ["#fd79a8", "#ff6b6b", "#ffd166", "#f9ca24", "#e17055", "#d63031", "#fab1a0", "#ff7675"]
-    color_idx = ["#a29bfe", "#b2bec3"]
-
-    kr_cnt = us_cnt = idx_cnt = 0
-
-    for name, ticker in kr_selected.items():
-        if ticker in price_data:
-            ret = compute_returns(price_data[ticker])
-            if ret:
-                fig_norm.add_trace(go.Scatter(
-                    x=ret["normalized"].index,
-                    y=ret["normalized"].values,
-                    name=f"🇰🇷 {name}",
-                    line=dict(color=color_palette_kr[kr_cnt % len(color_palette_kr)], width=2),
-                    hovertemplate=f"<b>{name}</b><br>%{{x|%Y-%m-%d}}<br>수익률: %{{y:.1f}}<extra></extra>"
+    sec("정규화 수익률 비교 — 시작일 = 100")
+    fig = go.Figure()
+    for i,(n,t) in enumerate(kr_selected.items()):
+        if t in price_data:
+            r = compute_returns(price_data[t])
+            if r:
+                fig.add_trace(go.Scatter(
+                    x=r["normalized"].index, y=r["normalized"].values,
+                    name=f"🇰🇷 {n}",
+                    line=dict(color=KR_COLORS[i%len(KR_COLORS)], width=2.5),
+                    hovertemplate=f"<b>{n}</b><br>%{{x|%Y-%m-%d}}<br>%{{y:.1f}}<extra></extra>",
                 ))
-                kr_cnt += 1
-
-    for name, ticker in us_selected.items():
-        if ticker in price_data:
-            ret = compute_returns(price_data[ticker])
-            if ret:
-                fig_norm.add_trace(go.Scatter(
-                    x=ret["normalized"].index,
-                    y=ret["normalized"].values,
-                    name=f"🇺🇸 {name}",
-                    line=dict(color=color_palette_us[us_cnt % len(color_palette_us)], width=2),
-                    hovertemplate=f"<b>{name}</b><br>%{{x|%Y-%m-%d}}<br>수익률: %{{y:.1f}}<extra></extra>"
+    for i,(n,t) in enumerate(us_selected.items()):
+        if t in price_data:
+            r = compute_returns(price_data[t])
+            if r:
+                fig.add_trace(go.Scatter(
+                    x=r["normalized"].index, y=r["normalized"].values,
+                    name=f"🇺🇸 {n}",
+                    line=dict(color=US_COLORS[i%len(US_COLORS)], width=2.5),
+                    hovertemplate=f"<b>{n}</b><br>%{{x|%Y-%m-%d}}<br>%{{y:.1f}}<extra></extra>",
                 ))
-                us_cnt += 1
-
-    for name, ticker in idx_selected.items():
-        if ticker in price_data:
-            ret = compute_returns(price_data[ticker])
-            if ret:
-                fig_norm.add_trace(go.Scatter(
-                    x=ret["normalized"].index,
-                    y=ret["normalized"].values,
-                    name=f"📊 {name}",
-                    line=dict(color=color_idx[idx_cnt % 2], width=2, dash="dot"),
-                    hovertemplate=f"<b>{name}</b><br>%{{x|%Y-%m-%d}}<br>수익률: %{{y:.1f}}<extra></extra>"
+    for i,(n,t) in enumerate(idx_selected.items()):
+        if t in price_data:
+            r = compute_returns(price_data[t])
+            if r:
+                fig.add_trace(go.Scatter(
+                    x=r["normalized"].index, y=r["normalized"].values,
+                    name=f"📊 {n}",
+                    line=dict(color=IDX_COLORS[i%2], width=2, dash="dot"),
+                    hovertemplate=f"<b>{n}</b><br>%{{x|%Y-%m-%d}}<br>%{{y:.1f}}<extra></extra>",
                 ))
-                idx_cnt += 1
+    fig.add_hline(y=100, line_dash="dash", line_color="rgba(14,165,233,0.35)", line_width=1.5)
+    lay = base_layout(h=460)
+    lay["legend"]["x"] = 1.01; lay["legend"]["y"] = 1
+    fig.update_layout(**lay)
+    st.plotly_chart(fig, use_container_width=True)
 
-    fig_norm.add_hline(y=100, line_dash="dash", line_color="rgba(255,255,255,0.2)", line_width=1)
-
-    fig_norm.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(17,24,39,0.8)",
-        font=dict(family="Noto Sans KR, sans-serif", color="#c0cce0"),
-        height=450,
-        margin=dict(l=10, r=10, t=20, b=10),
-        legend=dict(
-            bgcolor="rgba(13,19,34,0.85)",
-            bordercolor="rgba(255,255,255,0.1)",
-            borderwidth=1,
-            font=dict(size=11),
-            orientation="v",
-            x=1.01, y=1,
-        ),
-        xaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.1)"),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.1)", ticksuffix=""),
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_norm, use_container_width=True)
-
-    # ── Return Summary Table ──
-    st.markdown('<div class="section-header">기간 수익률 요약</div>', unsafe_allow_html=True)
-
-    summary_rows = []
-    for name, ticker in {**kr_selected, **us_selected, **idx_selected}.items():
+    sec("기간 수익률 요약")
+    rows = []
+    for name, ticker in {**kr_selected,**us_selected,**idx_selected}.items():
         if ticker in price_data:
-            ret = compute_returns(price_data[ticker])
-            if ret:
-                region = "🇰🇷 한국" if ticker in kr_selected.values() else ("🇺🇸 미국" if ticker in us_selected.values() else "📊 지수")
+            r = compute_returns(price_data[ticker])
+            if r:
                 info = fetch_current_info(ticker)
-                summary_rows.append({
-                    "종목명": name,
-                    "지역": region,
-                    "현재가": format_price(info["price"], info["currency"]),
-                    "전일대비": format_change(info["change"], info["change_pct"]),
-                    f"{period_label} 수익률": f"{ret['total_return']:+.2f}%",
-                    "시작가": format_price(ret["first"], info["currency"]),
-                    "현재가(기간)": format_price(ret["last"], info["currency"]),
+                region = "🇰🇷 한국" if ticker in kr_selected.values() \
+                         else ("🇺🇸 미국" if ticker in us_selected.values() else "📊 지수")
+                a, p = fmt_chg(info["change_pct"])
+                rows.append({
+                    "종목명": name, "지역": region,
+                    "현재가": fmt_price(info["price"],info["currency"]),
+                    "전일대비": f"{a} {p}",
+                    f"{period_label} 수익률": f"{r['total_return']:+.2f}%",
+                    "시작가": fmt_price(r["first"],info["currency"]),
+                    "기말가": fmt_price(r["last"], info["currency"]),
                 })
-
-    if summary_rows:
-        df_summary = pd.DataFrame(summary_rows)
-        st.dataframe(
-            df_summary,
-            use_container_width=True,
-            hide_index=True,
-        )
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 – 차트 분석
 # ══════════════════════════════════════════════════════════════════════════════
 with tab2:
-    st.markdown('<div class="section-header">개별 주가 차트</div>', unsafe_allow_html=True)
-
-    chart_items = [(n, t, "KR") for n, t in kr_selected.items()] + \
-                  [(n, t, "US") for n, t in us_selected.items()]
-
+    sec("개별 주가 차트")
+    chart_items = [(n,t,"KR") for n,t in kr_selected.items()] + \
+                  [(n,t,"US") for n,t in us_selected.items()]
     if not chart_items:
         st.info("사이드바에서 종목을 선택해 주세요.")
     else:
-        selected_chart = st.selectbox(
-            "차트 볼 종목 선택",
-            [f"{'🇰🇷' if r == 'KR' else '🇺🇸'} {n}" for n, _, r in chart_items],
-        )
-        sel_idx_chart = [f"{'🇰🇷' if r == 'KR' else '🇺🇸'} {n}" for n, _, r in chart_items].index(selected_chart)
-        sel_name, sel_ticker, sel_region = chart_items[sel_idx_chart]
+        labels    = [f"{'🇰🇷' if r=='KR' else '🇺🇸'} {n}" for n,_,r in chart_items]
+        sel_label = st.selectbox("종목 선택", labels, key="chart_sel")
+        idx_c     = labels.index(sel_label)
+        sel_name, sel_ticker, sel_region = chart_items[idx_c]
 
         if sel_ticker in price_data:
-            series = price_data[sel_ticker]
-            info = fetch_current_info(sel_ticker)
-
-            # Candle data
-            t_obj = yf.Ticker(sel_ticker)
-            hist_full = t_obj.history(period=period)
-
-            rows_count = 2 if show_volume else 1
-            row_heights = [0.75, 0.25] if show_volume else [1.0]
-            fig_candle = make_subplots(
-                rows=rows_count, cols=1,
-                shared_xaxes=True,
+            info      = fetch_current_info(sel_ticker)
+            hist_full = yf.Ticker(sel_ticker).history(period=period)
+            rn        = 2 if show_volume else 1
+            fig_c     = make_subplots(
+                rows=rn, cols=1, shared_xaxes=True,
                 vertical_spacing=0.03,
-                row_heights=row_heights,
+                row_heights=[0.75,0.25] if show_volume else [1.0],
             )
-
-            # Candlestick
-            fig_candle.add_trace(go.Candlestick(
+            fig_c.add_trace(go.Candlestick(
                 x=hist_full.index,
-                open=hist_full["Open"],
-                high=hist_full["High"],
-                low=hist_full["Low"],
-                close=hist_full["Close"],
+                open=hist_full["Open"], high=hist_full["High"],
+                low=hist_full["Low"],   close=hist_full["Close"],
                 name="OHLC",
-                increasing_line_color="#00e676",
-                decreasing_line_color="#ff4d6d",
-                increasing_fillcolor="#00e676",
-                decreasing_fillcolor="#ff4d6d",
+                increasing_line_color="#10b981", decreasing_line_color="#ef4444",
+                increasing_fillcolor="#10b981",  decreasing_fillcolor="#ef4444",
             ), row=1, col=1)
-
-            # Moving Averages
             if show_ma:
-                for ma, color in [(20, "#ffd166"), (60, "#a29bfe")]:
+                for ma, color in [(20,"#f59e0b"),(60,"#8b5cf6")]:
                     if len(hist_full) >= ma:
-                        ma_series = hist_full["Close"].rolling(ma).mean()
-                        fig_candle.add_trace(go.Scatter(
-                            x=ma_series.index, y=ma_series.values,
-                            name=f"MA{ma}",
-                            line=dict(color=color, width=1.5),
+                        ms = hist_full["Close"].rolling(ma).mean()
+                        fig_c.add_trace(go.Scatter(
+                            x=ms.index, y=ms.values,
+                            name=f"MA{ma}", line=dict(color=color, width=1.8),
                         ), row=1, col=1)
-
-            # Volume
             if show_volume and "Volume" in hist_full.columns:
-                colors_vol = ["#00e676" if c >= o else "#ff4d6d"
-                              for c, o in zip(hist_full["Close"], hist_full["Open"])]
-                fig_candle.add_trace(go.Bar(
-                    x=hist_full.index,
-                    y=hist_full["Volume"],
-                    name="거래량",
-                    marker_color=colors_vol,
-                    opacity=0.7,
+                vc = ["#10b981" if c>=o else "#ef4444"
+                      for c,o in zip(hist_full["Close"],hist_full["Open"])]
+                fig_c.add_trace(go.Bar(
+                    x=hist_full.index, y=hist_full["Volume"],
+                    name="거래량", marker_color=vc, opacity=0.6,
                 ), row=2, col=1)
+            lay_c = base_layout(h=520, title=f"{sel_name} ({sel_ticker}) — {period_label} 캔들 차트")
+            lay_c["xaxis_rangeslider_visible"] = False
+            fig_c.update_layout(**lay_c)
+            for rx in range(1, rn+1):
+                fig_c.update_xaxes(gridcolor="rgba(186,230,253,.55)", linecolor="#bae6fd", row=rx, col=1)
+                fig_c.update_yaxes(gridcolor="rgba(186,230,253,.55)", linecolor="#bae6fd", row=rx, col=1)
+            st.plotly_chart(fig_c, use_container_width=True)
 
-            fig_candle.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(17,24,39,0.8)",
-                font=dict(family="Noto Sans KR", color="#c0cce0"),
-                height=500,
-                margin=dict(l=10, r=10, t=30, b=10),
-                xaxis_rangeslider_visible=False,
-                showlegend=True,
-                legend=dict(bgcolor="rgba(13,19,34,0.85)", bordercolor="rgba(255,255,255,0.1)", borderwidth=1),
-                title=dict(
-                    text=f"{sel_name} ({sel_ticker}) — {period_label} 캔들 차트",
-                    font=dict(size=14, color="#f0f4ff"),
-                    x=0.01,
-                ),
-            )
-            for r in range(1, rows_count + 1):
-                fig_candle.update_xaxes(gridcolor="rgba(255,255,255,0.05)", row=r, col=1)
-                fig_candle.update_yaxes(gridcolor="rgba(255,255,255,0.05)", row=r, col=1)
+            ret = compute_returns(price_data[sel_ticker])
+            c1,c2,c3,c4 = st.columns(4)
+            c1.metric("현재가",         fmt_price(info["price"],info["currency"]))
+            c2.metric("전일대비",        f"{info['change_pct']:+.2f}%")
+            c3.metric(f"{period_label} 수익률", f"{ret.get('total_return',0):+.2f}%" if ret else "N/A")
+            high = hist_full["High"].max(); low = hist_full["Low"].min()
+            c4.metric(f"{period_label} 최고가", fmt_price(high,info["currency"]),
+                      delta=f"최저 {fmt_price(low,info['currency'])}")
 
-            st.plotly_chart(fig_candle, use_container_width=True)
-
-            # Stats row
-            c1, c2, c3, c4 = st.columns(4)
-            ret = compute_returns(series)
-            with c1:
-                st.metric("현재가", format_price(info["price"], info["currency"]))
-            with c2:
-                st.metric("전일대비", format_change(info["change"], info["change_pct"]),
-                          delta=f"{info['change_pct']:.2f}%")
-            with c3:
-                st.metric(f"{period_label} 수익률", f"{ret.get('total_return', 0):+.2f}%" if ret else "N/A")
-            with c4:
-                high = hist_full["High"].max()
-                low = hist_full["Low"].min()
-                st.metric(f"{period_label} 고/저",
-                          format_price(high, info["currency"]),
-                          delta=f"저: {format_price(low, info['currency'])}")
-
-        # Index Chart
-        if idx_selected:
-            st.markdown('<div class="section-header">지수 차트</div>', unsafe_allow_html=True)
-            fig_idx = go.Figure()
-            for i, (name, ticker) in enumerate(idx_selected.items()):
-                if ticker in price_data:
-                    fig_idx.add_trace(go.Scatter(
-                        x=price_data[ticker].index,
-                        y=price_data[ticker].values,
-                        name=name,
-                        fill="tozeroy",
-                        fillcolor=f"rgba(79,172,254,{0.05 + i * 0.03})",
-                        line=dict(color=color_idx[i % 2], width=2),
-                    ))
-            fig_idx.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(17,24,39,0.8)",
-                font=dict(family="Noto Sans KR", color="#c0cce0"),
-                height=300,
-                margin=dict(l=10, r=10, t=20, b=10),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                legend=dict(bgcolor="rgba(13,19,34,0.85)", bordercolor="rgba(255,255,255,0.1)", borderwidth=1),
-            )
-            st.plotly_chart(fig_idx, use_container_width=True)
+    if idx_selected:
+        sec("시장 지수 차트")
+        fig_i = go.Figure()
+        for i,(n,t) in enumerate(idx_selected.items()):
+            if t in price_data:
+                s = price_data[t]
+                fig_i.add_trace(go.Scatter(
+                    x=s.index, y=s.values, name=n,
+                    fill="tozeroy",
+                    fillcolor=f"rgba(56,189,248,{0.07+i*0.04})",
+                    line=dict(color=IDX_COLORS[i%2], width=2.5),
+                ))
+        fig_i.update_layout(**base_layout(h=300))
+        st.plotly_chart(fig_i, use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 – 성과 랭킹
 # ══════════════════════════════════════════════════════════════════════════════
 with tab3:
-    st.markdown('<div class="section-header">수익률 랭킹</div>', unsafe_allow_html=True)
-
+    sec("수익률 랭킹")
     ranking = []
-    for name, ticker in {**kr_selected, **us_selected}.items():
+    for name, ticker in all_selected.items():
         if ticker in price_data:
-            ret = compute_returns(price_data[ticker])
-            if ret:
-                info = fetch_current_info(ticker)
+            r = compute_returns(price_data[ticker])
+            if r:
+                info   = fetch_current_info(ticker)
                 region = "🇰🇷" if ticker in kr_selected.values() else "🇺🇸"
-                ranking.append({
-                    "name": name,
-                    "ticker": ticker,
-                    "region": region,
-                    "return": ret["total_return"],
-                    "currency": info["currency"],
-                    "price": info["price"],
-                })
+                ranking.append({"name":name,"ticker":ticker,"region":region,
+                                 "return":r["total_return"],"currency":info["currency"]})
 
     if ranking:
         ranking.sort(key=lambda x: x["return"], reverse=True)
-
-        # Bar chart
-        fig_bar = go.Figure()
-        colors_bar = ["#00e676" if r["return"] >= 0 else "#ff4d6d" for r in ranking]
-        fig_bar.add_trace(go.Bar(
+        bc = ["#10b981" if r["return"]>=0 else "#ef4444" for r in ranking]
+        fig_b = go.Figure(go.Bar(
             x=[r["return"] for r in ranking],
             y=[f"{r['region']} {r['name']}" for r in ranking],
             orientation="h",
-            marker_color=colors_bar,
+            marker=dict(color=bc, opacity=0.82, line=dict(width=0)),
             text=[f"{r['return']:+.2f}%" for r in ranking],
             textposition="outside",
-            textfont=dict(size=11, family="Space Mono"),
+            textfont=dict(size=11, family="DM Mono"),
         ))
-        fig_bar.add_vline(x=0, line_color="rgba(255,255,255,0.3)", line_width=1)
-        fig_bar.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(17,24,39,0.8)",
-            font=dict(family="Noto Sans KR", color="#c0cce0"),
-            height=max(300, len(ranking) * 42),
-            margin=dict(l=10, r=80, t=20, b=10),
-            xaxis=dict(gridcolor="rgba(255,255,255,0.05)", ticksuffix="%"),
-            yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-            showlegend=False,
-            title=dict(text=f"{period_label} 수익률 순위", font=dict(size=13, color="#f0f4ff"), x=0.01),
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
+        fig_b.add_vline(x=0, line_color="rgba(14,165,233,.5)", line_width=1.5)
+        lb = base_layout(h=max(280, len(ranking)*44), title=f"{period_label} 수익률 순위")
+        lb["yaxis"]["autorange"]  = "reversed"
+        lb["xaxis"]["ticksuffix"] = "%"
+        lb["showlegend"]          = False
+        lb["margin"]["r"]         = 80
+        fig_b.update_layout(**lb)
+        st.plotly_chart(fig_b, use_container_width=True)
 
-        # Scatter: Return vs Volatility
-        st.markdown('<div class="section-header">리스크-수익률 분포</div>', unsafe_allow_html=True)
-
-        scatter_data = []
+        sec("리스크 · 수익률 분포")
+        sd = []
         for r in ranking:
             if r["ticker"] in price_data:
-                series = price_data[r["ticker"]]
-                daily_ret = series.pct_change().dropna()
-                vol = daily_ret.std() * np.sqrt(252) * 100  # annualized vol %
-                scatter_data.append({**r, "volatility": vol})
-
-        if scatter_data:
-            fig_scatter = go.Figure()
-            for item in scatter_data:
-                color = "#4facfe" if item["region"] == "🇰🇷" else "#fd79a8"
-                fig_scatter.add_trace(go.Scatter(
-                    x=[item["volatility"]],
-                    y=[item["return"]],
+                vol = price_data[r["ticker"]].pct_change().dropna().std() * np.sqrt(252) * 100
+                sd.append({**r, "vol": vol})
+        if sd:
+            fig_s = go.Figure()
+            for item in sd:
+                color = "#0ea5e9" if item["region"]=="🇰🇷" else "#f59e0b"
+                fig_s.add_trace(go.Scatter(
+                    x=[item["vol"]], y=[item["return"]],
                     mode="markers+text",
-                    marker=dict(size=14, color=color, opacity=0.85,
-                                line=dict(width=1, color="rgba(255,255,255,0.3)")),
+                    marker=dict(size=15, color=color, opacity=0.82,
+                                line=dict(width=2.5, color="white")),
                     text=[item["name"]],
                     textposition="top center",
-                    textfont=dict(size=10),
-                    name=f"{item['region']} {item['name']}",
+                    textfont=dict(size=10, color="#334e68"),
                     showlegend=False,
-                    hovertemplate=f"<b>{item['region']} {item['name']}</b><br>수익률: {item['return']:+.2f}%<br>변동성: {item['volatility']:.1f}%<extra></extra>"
+                    hovertemplate=(f"<b>{item['region']} {item['name']}</b><br>"
+                                   f"수익률: {item['return']:+.2f}%<br>"
+                                   f"변동성: {item['vol']:.1f}%<extra></extra>"),
                 ))
-            fig_scatter.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.2)")
-            fig_scatter.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(17,24,39,0.8)",
-                font=dict(family="Noto Sans KR", color="#c0cce0"),
-                height=420,
-                margin=dict(l=10, r=10, t=30, b=10),
-                xaxis=dict(title="연환산 변동성 (%)", gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(title=f"{period_label} 수익률 (%)", gridcolor="rgba(255,255,255,0.05)"),
-                title=dict(text="리스크(변동성) vs 수익률", font=dict(size=13, color="#f0f4ff"), x=0.01),
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            fig_s.add_hline(y=0, line_dash="dash", line_color="rgba(14,165,233,.4)")
+            ls = base_layout(h=420, title="리스크(연환산 변동성) vs 수익률")
+            ls["xaxis"]["title"] = "연환산 변동성 (%)"
+            ls["yaxis"]["title"] = f"{period_label} 수익률 (%)"
+            fig_s.update_layout(**ls)
+            st.plotly_chart(fig_s, use_container_width=True)
 
-        # KR vs US comparison
         col_kr, col_us = st.columns(2)
-        kr_rets = [r for r in ranking if r["region"] == "🇰🇷"]
-        us_rets = [r for r in ranking if r["region"] == "🇺🇸"]
+        kr_r = sorted([r for r in ranking if r["region"]=="🇰🇷"], key=lambda x:x["return"],reverse=True)
+        us_r = sorted([r for r in ranking if r["region"]=="🇺🇸"], key=lambda x:x["return"],reverse=True)
 
-        with col_kr:
-            st.markdown('<div class="section-header">🇰🇷 한국 수익률 순위</div>', unsafe_allow_html=True)
-            for i, r in enumerate(sorted(kr_rets, key=lambda x: x["return"], reverse=True)):
-                medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"#{i+1}"
-                color = "#00e676" if r["return"] >= 0 else "#ff4d6d"
-                st.markdown(
-                    f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);'>"
-                    f"<span>{medal} {r['name']}</span>"
-                    f"<span style='color:{color};font-family:Space Mono;font-weight:700;'>{r['return']:+.2f}%</span>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-
-        with col_us:
-            st.markdown('<div class="section-header">🇺🇸 미국 수익률 순위</div>', unsafe_allow_html=True)
-            for i, r in enumerate(sorted(us_rets, key=lambda x: x["return"], reverse=True)):
-                medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"#{i+1}"
-                color = "#00e676" if r["return"] >= 0 else "#ff4d6d"
-                st.markdown(
-                    f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);'>"
-                    f"<span>{medal} {r['name']}</span>"
-                    f"<span style='color:{color};font-family:Space Mono;font-weight:700;'>{r['return']:+.2f}%</span>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
+        for col, items, label in [(col_kr, kr_r, "🇰🇷 한국 순위"), (col_us, us_r, "🇺🇸 미국 순위")]:
+            with col:
+                sec(label)
+                st.markdown('<div class="icard">', unsafe_allow_html=True)
+                for i, r in enumerate(items):
+                    medal = ["🥇","🥈","🥉"][i] if i<3 else f"#{i+1}"
+                    color = "#10b981" if r["return"]>=0 else "#ef4444"
+                    st.markdown(
+                        f'<div class="rank-row"><span>{medal} {r["name"]}</span>'
+                        f'<span style="color:{color};font-family:DM Mono,monospace;font-weight:700;">'
+                        f'{r["return"]:+.2f}%</span></div>',
+                        unsafe_allow_html=True
+                    )
+                st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 – 종목 상세
 # ══════════════════════════════════════════════════════════════════════════════
 with tab4:
-    st.markdown('<div class="section-header">종목 상세 정보</div>', unsafe_allow_html=True)
-
-    all_detail = {**kr_selected, **us_selected}
-    if not all_detail:
+    sec("종목 상세 정보")
+    if not all_selected:
         st.info("사이드바에서 종목을 선택해 주세요.")
     else:
-        detail_name = st.selectbox("종목 선택", list(all_detail.keys()), key="detail_sel")
-        detail_ticker = all_detail[detail_name]
+        detail_name   = st.selectbox("종목 선택", list(all_selected.keys()), key="det_sel")
+        detail_ticker = all_selected[detail_name]
         detail_region = "KR" if detail_ticker in kr_selected.values() else "US"
 
         info = fetch_current_info(detail_ticker)
         try:
-            t_obj = yf.Ticker(detail_ticker)
-            full_info = t_obj.info
+            full = yf.Ticker(detail_ticker).info
         except Exception:
-            full_info = {}
+            full = {}
 
-        col_a, col_b = st.columns([2, 1])
+        arrow, pct_s = fmt_chg(info["change_pct"])
+        chg_color = "#10b981" if info["change_pct"]>=0 else "#ef4444"
+        badge_html = ('<span class="badge badge-kr">KR</span>' if detail_region=="KR"
+                      else '<span class="badge badge-us">US</span>')
 
+        col_a, col_b = st.columns([2,1])
         with col_a:
-            flag_html = '<span class="flag-tag flag-kr">KR</span>' if detail_region == "KR" else '<span class="flag-tag flag-us">US</span>'
             st.markdown(f"""
-            <div class="metric-card" style="margin-bottom:1rem;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <span style="font-family:Space Mono;font-size:1rem;font-weight:700;">{detail_ticker}</span>
-                {flag_html}
+            <div class="icard" style="margin-bottom:1rem;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span style="font-family:DM Mono,monospace;font-size:.95rem;
+                             font-weight:600;color:#0369a1;">{detail_ticker}</span>
+                {badge_html}
               </div>
-              <div style="font-size:1.5rem;font-weight:700;margin-bottom:4px;">{info['name']}</div>
-              <div style="font-size:2rem;font-family:Space Mono;font-weight:700;">{format_price(info['price'], info['currency'])}</div>
-              <div class="{'metric-change-pos' if info['change_pct'] >= 0 else 'metric-change-neg'}" style="font-size:1rem;margin-top:4px;">
-                {'▲' if info['change_pct'] >= 0 else '▼'} {abs(info['change_pct']):.2f}%
+              <div style="font-size:1.4rem;font-weight:700;color:#0c2340;margin-bottom:6px;">
+                {info['name']}
+              </div>
+              <div style="font-family:DM Mono,monospace;font-size:2.1rem;
+                          font-weight:700;color:#0c2340;letter-spacing:-1px;">
+                {fmt_price(info['price'],info['currency'])}
+              </div>
+              <div style="color:{chg_color};font-family:DM Mono,monospace;
+                          font-size:1rem;font-weight:600;margin-top:6px;">
+                {arrow} {pct_s}
               </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Metrics grid
-            mc = full_info.get("marketCap")
-            pe = full_info.get("trailingPE")
-            pb = full_info.get("priceToBook")
-            div_yield = full_info.get("dividendYield")
-            beta = full_info.get("beta")
-            week52_high = full_info.get("fiftyTwoWeekHigh")
-            week52_low = full_info.get("fiftyTwoWeekLow")
-            avg_vol = full_info.get("averageVolume")
+            mc=full.get("marketCap"); pe=full.get("trailingPE"); pb=full.get("priceToBook")
+            dy=full.get("dividendYield"); beta=full.get("beta")
+            w52h=full.get("fiftyTwoWeekHigh"); w52l=full.get("fiftyTwoWeekLow")
+            avol=full.get("averageVolume")
 
-            def fmt_num(v, suffix="", prefix="", decimals=2):
-                if v is None: return "N/A"
-                if v >= 1e12: return f"{prefix}{v/1e12:.1f}T{suffix}"
-                if v >= 1e9: return f"{prefix}{v/1e9:.1f}B{suffix}"
-                if v >= 1e6: return f"{prefix}{v/1e6:.1f}M{suffix}"
-                return f"{prefix}{v:,.{decimals}f}{suffix}"
-
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("시가총액", fmt_num(mc))
-            m2.metric("P/E (TTM)", f"{pe:.1f}x" if pe else "N/A")
-            m3.metric("P/B", f"{pb:.2f}x" if pb else "N/A")
-            m4.metric("배당수익률", f"{div_yield*100:.2f}%" if div_yield else "N/A")
-
-            m5, m6, m7, m8 = st.columns(4)
-            m5.metric("베타", f"{beta:.2f}" if beta else "N/A")
-            m6.metric("52주 최고", format_price(week52_high, info["currency"]))
-            m7.metric("52주 최저", format_price(week52_low, info["currency"]))
-            m8.metric("평균거래량", fmt_num(avg_vol, decimals=0))
+            m1,m2,m3,m4 = st.columns(4)
+            m1.metric("시가총액",   fmt_num(mc))
+            m2.metric("P/E (TTM)", f"{pe:.1f}x"      if pe   else "N/A")
+            m3.metric("P/B",       f"{pb:.2f}x"      if pb   else "N/A")
+            m4.metric("배당수익률", f"{dy*100:.2f}%"  if dy   else "N/A")
+            m5,m6,m7,m8 = st.columns(4)
+            m5.metric("베타",       f"{beta:.2f}"     if beta else "N/A")
+            m6.metric("52주 최고",  fmt_price(w52h, info["currency"]))
+            m7.metric("52주 최저",  fmt_price(w52l, info["currency"]))
+            m8.metric("평균 거래량", fmt_num(avol, 0))
 
         with col_b:
-            # Sector / Industry
-            sector = full_info.get("sector", "")
-            industry = full_info.get("industry", "")
-            country = full_info.get("country", "")
-            exchange = full_info.get("exchange", "")
-            employees = full_info.get("fullTimeEmployees")
-            website = full_info.get("website", "")
-
+            sector   = full.get("sector","");   industry = full.get("industry","")
+            country  = full.get("country","");  exchange = full.get("exchange","")
+            emp      = full.get("fullTimeEmployees"); website = full.get("website","")
+            rows_h = ""
+            if sector:   rows_h += f'<div><span style="color:#6b90b0;">섹터</span> &nbsp; {sector}</div>'
+            if industry: rows_h += f'<div><span style="color:#6b90b0;">업종</span> &nbsp; {industry}</div>'
+            if country:  rows_h += f'<div><span style="color:#6b90b0;">국가</span> &nbsp; {country}</div>'
+            if exchange: rows_h += f'<div><span style="color:#6b90b0;">거래소</span> &nbsp; {exchange}</div>'
+            if emp:      rows_h += f'<div><span style="color:#6b90b0;">직원수</span> &nbsp; {emp:,}명</div>'
+            if website:  rows_h += f'<div style="margin-top:8px;"><a href="{website}" target="_blank" style="color:#0ea5e9;font-size:.8rem;">🔗 공식 웹사이트</a></div>'
             st.markdown(f"""
-            <div class="metric-card">
-              <div class="metric-ticker">기업 정보</div>
-              <div style="margin-top: 10px; font-size: 0.85rem; line-height: 2;">
-                {'<div><span style="color:#7a8ab0;">섹터</span> &nbsp; ' + sector + '</div>' if sector else ''}
-                {'<div><span style="color:#7a8ab0;">업종</span> &nbsp; ' + industry + '</div>' if industry else ''}
-                {'<div><span style="color:#7a8ab0;">국가</span> &nbsp; ' + country + '</div>' if country else ''}
-                {'<div><span style="color:#7a8ab0;">거래소</span> &nbsp; ' + exchange + '</div>' if exchange else ''}
-                {'<div><span style="color:#7a8ab0;">직원수</span> &nbsp; ' + f"{employees:,}" + '명</div>' if employees else ''}
-                {'<div style="margin-top:8px;"><a href="' + website + '" target="_blank" style="color:#4facfe;font-size:0.8rem;">🔗 공식 웹사이트</a></div>' if website else ''}
-              </div>
+            <div class="icard">
+              <div class="icard-lbl">기업 정보</div>
+              <div style="font-size:.84rem;line-height:2.1;color:#334e68;">{rows_h}</div>
             </div>
             """, unsafe_allow_html=True)
-
-            # Business summary
-            summary = full_info.get("longBusinessSummary", "")
+            summary = full.get("longBusinessSummary","")
             if summary:
                 st.markdown(f"""
-                <div class="metric-card" style="margin-top:0.8rem;">
-                  <div class="metric-ticker">사업 개요</div>
-                  <div style="font-size:0.78rem;color:#9aa8c0;line-height:1.6;margin-top:8px;max-height:200px;overflow-y:auto;">
-                    {summary[:500]}{'...' if len(summary) > 500 else ''}
+                <div class="icard">
+                  <div class="icard-lbl">사업 개요</div>
+                  <div style="font-size:.78rem;color:#6b90b0;line-height:1.7;
+                              max-height:200px;overflow-y:auto;">
+                    {summary[:500]}{'...' if len(summary)>500 else ''}
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-        # Correlation heatmap
         if len(all_selected) >= 2:
-            st.markdown('<div class="section-header">상관관계 히트맵</div>', unsafe_allow_html=True)
-
-            returns_df = pd.DataFrame()
-            for name, ticker in all_selected.items():
-                if ticker in price_data:
-                    returns_df[name] = price_data[ticker].pct_change()
-
-            if len(returns_df.columns) >= 2:
-                corr = returns_df.corr()
-                fig_corr = go.Figure(data=go.Heatmap(
+            sec("상관관계 히트맵")
+            ret_df = pd.DataFrame({
+                n: price_data[t].pct_change()
+                for n,t in all_selected.items() if t in price_data
+            })
+            if len(ret_df.columns) >= 2:
+                corr  = ret_df.corr()
+                fig_h = go.Figure(go.Heatmap(
                     z=corr.values,
                     x=corr.columns.tolist(),
                     y=corr.index.tolist(),
-                    colorscale=[[0, "#ff4d6d"], [0.5, "#1a2235"], [1, "#4facfe"]],
+                    colorscale=[[0,"#ef4444"],[0.5,"#e0f2fe"],[1,"#0ea5e9"]],
                     zmin=-1, zmax=1,
                     text=[[f"{v:.2f}" for v in row] for row in corr.values],
                     texttemplate="%{text}",
-                    textfont=dict(size=10),
+                    textfont=dict(size=10, color="#0c2340"),
                     hovertemplate="%{y} vs %{x}: %{z:.3f}<extra></extra>",
                 ))
-                fig_corr.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(17,24,39,0.8)",
-                    font=dict(family="Noto Sans KR", color="#c0cce0"),
-                    height=max(350, len(corr) * 50),
-                    margin=dict(l=10, r=10, t=20, b=10),
-                    title=dict(text=f"{period_label} 일간 수익률 기준 상관관계", font=dict(size=13, color="#f0f4ff"), x=0.01),
-                )
-                st.plotly_chart(fig_corr, use_container_width=True)
+                lh = base_layout(h=max(320, len(corr)*50),
+                                  title=f"{period_label} 일간 수익률 기준 상관관계")
+                fig_h.update_layout(**lh)
+                st.plotly_chart(fig_h, use_container_width=True)
 
 # ─── Footer ───────────────────────────────────────────────────────────────────
-st.markdown("---")
-st.markdown(
-    "<div style='text-align:center;font-size:0.75rem;color:#4a5a80;padding:0.5rem 0;'>"
-    "📊 데이터 출처: Yahoo Finance (yfinance) &nbsp;|&nbsp; "
-    "본 대시보드는 투자 참고용이며 투자 권유가 아닙니다. "
-    "</div>",
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div style="margin-top:3rem;padding:1.4rem 2rem;
+            background:linear-gradient(135deg,#e0f2fe,#f0f9ff);
+            border-radius:18px;border:1.5px solid #bae6fd;
+            text-align:center;font-size:.78rem;color:#6b90b0;line-height:2.2;
+            box-shadow:0 2px 12px rgba(14,165,233,.08);">
+  <span style="font-weight:700;color:#0369a1;font-size:.9rem;">☀️ 글로벌 주식 비교 대시보드</span><br>
+  데이터 출처: Yahoo Finance (yfinance) &nbsp;·&nbsp; 5분 간격 갱신
+  &nbsp;·&nbsp; 본 대시보드는 투자 참고용이며 투자 권유가 아닙니다.
+</div>
+""", unsafe_allow_html=True)
